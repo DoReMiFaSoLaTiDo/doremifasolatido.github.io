@@ -1,0 +1,20 @@
+{% for skill in site.data.skills %}
+	<img 
+		src="https://source.unsplash.com/featured/?{{ skill.keyword }}" 
+		alt="{{ skill.name }}"
+		class="header-img img-responsive"
+		width=200
+		height=200
+	>
+{% endfor %}
+<nav>
+	{% for item in site.data.navigation %}
+		<a href="{{ item.link }}" 
+			{% if page.url == item.link %}
+				class="active"
+			{% endif %}
+		>
+			{{ item.name }}
+		</a>
+	{% endfor %}
+</nav>

@@ -1,0 +1,10 @@
+.active {
+	color: green;
+}
+
+.header-img {
+	max-width: 100%;
+	height: auto;
+	display: inline-block;
+	aspect-ratio: attr(width)/attr(height);
+}
