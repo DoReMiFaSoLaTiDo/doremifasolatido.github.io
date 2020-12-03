@@ -1,0 +1,77 @@
+I"a<p>I seem to be late to the Event Sourcing architecture party, like several years late. I initially looked into it sometime ago, but didn’t have any immediate application use-case for it, so filed it away until recently when building an enterprise Rails application that tracks daily production activities, and also income and expense (Accounts, yo!).
+ </p>
+<h3 id="enter-event-sourcing">Enter Event Sourcing…</h3>
+<p>In its basic form, Event Sourcing revolves around aggregates – a body of interconnected entities (models) which together complete a task. The classic example is that of an Order: select order items, make payment, order shipped, order delivered. These activities (or events) leave a trail of interesting data points both at the merchant and buyer ends. The aggregate here is composed of <code class="language-plaintext highlighter-rouge">:order</code>, <code class="language-plaintext highlighter-rouge">:payment</code>, <code class="language-plaintext highlighter-rouge">:shipment</code> and <code class="language-plaintext highlighter-rouge">:item</code> entities, with <code class="language-plaintext highlighter-rouge">:order</code> serving as aggregate_root</p>
+
+<h3 id="implementing-event-sourcing-in-rails">Implementing Event Sourcing in Rails</h3>
+<p>There are a few ideas to implementing Event Source I felt were worthy of trying out. These include setting up <code class="language-plaintext highlighter-rouge">rails_event_store</code> gem and CommandBus with Redis, and using ActiveRecord::Observer to track model changes. But after reading a bunch of articles on the subject, I thought to bite the bullet, and roll my own implementation, while drawing inspiration from <a href="https://kickstarter.engineering/event-sourcing-made-simple-4a2625113224">Kickstarter’s guide</a> – their barebones no frills approach offers me customization opportunities down the line.</p>
+
+<h3 id="what-we-will-be-building">What We Will be Building</h3>
+<p>Our example will be based on an Account Reconciliation app that keeps track of a small business’ income and expenses. These (Account, Income, and Expenses) form an Aggregate cluster with Account as Aggregate Root, and Income &amp; Expense serving as events. When a business receives or pays out money, we would expect it to impact the Accounts. </p>
+
+<h3 id="the-solution-design">The Solution Design</h3>
+<p>With my (admittedly limited) understanding of Event Sourcing, I decided to model the solution as a Multi-Table Inheritance, and got some help from <a href="https://belighted.com/blog/implementing-multiple-table-inheritance-in-rails">here</a>. This gave me some quick wins, and I was able to get my model running with this setup:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    class Account &lt; ApplicationRecord    
+       # attributes :amount, :balance, :data, :status    
+       enum status: { pending_approval: 0, paid: 1, deposited: 2, failed: 3 }    
+
+       before_validation :initialize_model    validates :amount, presence: true,  numericality: { greater_than_or_equal_to: 0 }
+
+       # to be implemented in subclasses that are part of the Account aggregate
+       def initialize_model
+           raise NotImplementedError, 'Subclass did not define #initialize_model'
+       end
+
+    end
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    class Account::Salary &lt; Account    
+        has_one :event, class_name: 'SalaryEvent', inverse_of: :salary, dependent: :destroy, autosave: true
+    
+        delegate :basic, :basic=, :allowances, :allowances=, :tax_payable, :tax_payable=, :prepared_by, :prepared_by=, :approved_by, :approved_by=, to: :lazily_built_event
+    
+        validates :basic, :allowances, :tax_payable, presence: true, numericality: { only_integer: true, greater_than: 0 }
+    
+        def lazily_built_event        
+            event || build_event   
+        end
+
+        # implement the inherited method. This doubles as our Calculator    
+        def initialize_model        
+            self.amount = total_cost        
+            self.data = { basic: basic, allowances: allowances, tax_payable: tax_payable, prepared_by: prepared_by, approved_by: approved_by }.as_json            
+            if approved_by            
+                self.balance = get_balance - total_cost
+                self.status = 'paid'         
+            else            
+                self.status = 'pending_approval'  
+            end    
+        end
+
+        private
+
+        def total_cost
+            basic + allowances + tax_payable
+        end
+
+        def get_balance
+            (balance || 0)
+        end
+        
+	end
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    class SalaryEvent &lt; ApplicationRecord    
+        # attributes :basic, :allowances, :tax_payable, :prepared_by, approved_by  
+        belongs_to :salary, class_name: 'Account::Salary', inverse_of: :event
+
+        validates :salary, presence: true
+    end
+</code></pre></div></div>
+<p>With this implementation, I was able to get AggregateRoot, Events, and Calculator functional. Next up: <code class="language-plaintext highlighter-rouge">Reactors &amp; Dispatch</code></p>
+
+<h3 id="conclusion">Conclusion</h3>
+<p>This is a simplistic Account tracking application. The goal is to show some nuances with Event Sourcing that warrants pecuniar treatment (e,g. Double Entry and Dual Control principles in Accounting)</p>
+
+<p>See you next time!</p>
+
+:ET
