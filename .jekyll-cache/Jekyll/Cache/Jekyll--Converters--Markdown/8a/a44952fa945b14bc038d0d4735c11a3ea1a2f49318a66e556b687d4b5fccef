@@ -1,4 +1,4 @@
-I"W<p>I seem to be late to the Event Sourcing architecture party, like several years late. I initially looked into it sometime ago, but didn’t have any immediate application use-case for it, so filed it away until recently when building an enterprise Rails application that tracks daily production activities, and also income and expense (Accounts, yo!).
+I"Y<p>I seem to be late to the Event Sourcing architecture party, like several years late. I initially looked into it sometime ago, but didn’t have any immediate application use-case for it, so filed it away until recently when building an enterprise Rails application that tracks daily production activities, and also income and expense (Accounts, yo!).
  </p>
 <h3 id="enter-event-sourcing">Enter Event Sourcing…</h3>
 <p>In its basic form, Event Sourcing revolves around aggregates – a body of interconnected entities (models) which together complete a task. The classic example is that of an Order: select order items, make payment, order shipped, order delivered. These activities (or events) leave a trail of interesting data points both at the merchant and buyer ends. The aggregate here is composed of <code class="language-plaintext highlighter-rouge">:order</code>, <code class="language-plaintext highlighter-rouge">:payment</code>, <code class="language-plaintext highlighter-rouge">:shipment</code> and <code class="language-plaintext highlighter-rouge">:item</code> entities, with <code class="language-plaintext highlighter-rouge">:order</code> serving as aggregate_root</p>
@@ -15,13 +15,16 @@
        # attributes :amount, :balance, :data, :status    
        enum status: { pending_approval: 0, paid: 1, deposited: 2, failed: 3 }    
 
-       before_validation :initialize_model    validates :amount, presence: true,  numericality: { greater_than_or_equal_to: 0 }
+       before_validation :initialize_model    
+
+       validates :amount, presence: true,  numericality: { greater_than_or_equal_to: 0 }
 
        # to be implemented in subclasses that are part of the Account aggregate
        def initialize_model
            raise NotImplementedError, 'Subclass did not define #initialize_model'
        end
-	end
+
+    end
 </code></pre></div></div>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    class Account::Salary &lt; Account    
         has_one :event, class_name: 'SalaryEvent', inverse_of: :salary, dependent: :destroy, autosave: true
@@ -36,26 +39,28 @@
 
         # implement the inherited method. This doubles as our Calculator    
         def initialize_model        
-            self.amount = total_cost        
-            self.data = { basic: basic, allowances: allowances, tax_payable: tax_payable, prepared_by: prepared_by, approved_by: approved_by }.as_json            
+            amount = total_cost        
+            data = { basic: basic, allowances: allowances, tax_payable: tax_payable, prepared_by: prepared_by, approved_by: approved_by }.as_json            
+            
             if approved_by            
-                self.balance = get_balance - total_cost
-                self.status = 'paid'         
+                balance = get_balance - total_cost
+                status = 'paid'         
             else            
-                self.status = 'pending_approval'  
+                status = 'pending_approval'  
             end    
         end
 
         private
 
-		def total_cost        
-		    basic + allowances + tax_payable    
-		end
+        def total_cost
+            basic + allowances + tax_payable
+        end
 
-    	def get_balance        
-			(balance || 0)    
-		end
-	end
+        def get_balance
+            (balance || 0)
+        end
+
+    end
 </code></pre></div></div>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    class SalaryEvent &lt; ApplicationRecord    

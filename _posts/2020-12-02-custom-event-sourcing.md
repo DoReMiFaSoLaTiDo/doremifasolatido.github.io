@@ -23,7 +23,9 @@ With my (admittedly limited) understanding of Event Sourcing, I decided to model
        # attributes :amount, :balance, :data, :status    
        enum status: { pending_approval: 0, paid: 1, deposited: 2, failed: 3 }    
 
-       before_validation :initialize_model    validates :amount, presence: true,  numericality: { greater_than_or_equal_to: 0 }
+       before_validation :initialize_model    
+
+       validates :amount, presence: true,  numericality: { greater_than_or_equal_to: 0 }
 
        # to be implemented in subclasses that are part of the Account aggregate
        def initialize_model
@@ -46,13 +48,14 @@ With my (admittedly limited) understanding of Event Sourcing, I decided to model
 
         # implement the inherited method. This doubles as our Calculator    
         def initialize_model        
-            self.amount = total_cost        
-            self.data = { basic: basic, allowances: allowances, tax_payable: tax_payable, prepared_by: prepared_by, approved_by: approved_by }.as_json            
+            amount = total_cost        
+            data = { basic: basic, allowances: allowances, tax_payable: tax_payable, prepared_by: prepared_by, approved_by: approved_by }.as_json            
+            
             if approved_by            
-                self.balance = get_balance - total_cost
-                self.status = 'paid'         
+                balance = get_balance - total_cost
+                status = 'paid'         
             else            
-                self.status = 'pending_approval'  
+                status = 'pending_approval'  
             end    
         end
 
